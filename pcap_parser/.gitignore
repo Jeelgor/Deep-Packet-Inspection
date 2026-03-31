@@ -1,0 +1,6 @@
+*.exe
+*.o
+*.a
+sample.pcap
+gen_pcap
+pcap_parser
