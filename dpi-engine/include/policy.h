@@ -10,4 +10,4 @@ std::string evaluate_policy(const std::string& app_type,
 // THROTTLE overrides ALLOW/LOG but not BLOCK.
 std::string apply_rate_limit(const std::string& current_action,
                               uint64_t total_bytes,
-                              uint64_t byte_threshold = 100);
+                              uint64_t byte_threshold = 5000000); // 5MB default

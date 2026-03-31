@@ -1,0 +1,8 @@
+[capture] Live capture started on \Device\NPF_{95BADD56-96FA-4F8B-B1ED-134DB016CAAC}
+[sni] port=443 payload[0]=0x17 size=188 domain=''
+[sni] port=443 payload[0]=0x00 size=1 domain=''
+[sni] port=443 payload[0]=0x17 size=130 domain=''
+[sni] port=443 payload[0]=0x00 size=1 domain=''
+[sni] port=443 payload[0]=0x00 size=1 domain=''
+[sni] port=443 payload[0]=0x17 size=57 domain=''
+[sni] port=443 payload[0]=0x17 size=24 domain=''

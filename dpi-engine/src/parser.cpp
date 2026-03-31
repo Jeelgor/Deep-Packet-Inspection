@@ -136,3 +136,57 @@ std::vector<Packet> parse_pcap(const std::string& filepath) {
     pcap_close(handle);
     return packets;
 }
+
+void list_interfaces() {
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_if_t* devs;
+    if (pcap_findalldevs(&devs, errbuf) == -1) {
+        fprintf(stderr, "Error finding interfaces: %s\n", errbuf);
+        return;
+    }
+    printf("\nAvailable network interfaces:\n");
+    int i = 0;
+    for (pcap_if_t* d = devs; d; d = d->next) {
+        printf("  [%d] %s", ++i, d->name);
+        if (d->description) printf(" (%s)", d->description);
+        printf("\n");
+    }
+    pcap_freealldevs(devs);
+}
+
+void capture_live(const std::string& device,
+                  PacketQueue& queue,
+                  const std::atomic<bool>& stop) {
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    // Open live capture: device, snaplen, promiscuous, timeout_ms
+    pcap_t* handle = pcap_open_live(device.c_str(), 65535, 1, 100, errbuf);
+    if (!handle) {
+        fprintf(stderr, "[capture] Failed to open interface %s: %s\n",
+                device.c_str(), errbuf);
+        queue.finish();
+        return;
+    }
+
+    fprintf(stderr, "[capture] Live capture started on %s\n", device.c_str());
+
+    struct pcap_pkthdr* header;
+    const u_char* data;
+    uint32_t count = 0;
+
+    while (!stop) {
+        int result = pcap_next_ex(handle, &header, &data);
+        if (result == 0) continue;  // timeout, try again
+        if (result == -1) break;    // error
+
+        ++count;
+        Packet pkt;
+        if (extract_packet(data, header->caplen, count, pkt)) {
+            pkt.size = header->caplen;
+            queue.push(std::move(pkt));
+        }
+    }
+
+    pcap_close(handle);
+    queue.finish();
+}

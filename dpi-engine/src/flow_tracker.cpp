@@ -24,6 +24,17 @@ static std::string classify(uint16_t port_a, uint16_t port_b) {
     return "UNKNOWN";
 }
 
+// Try SNI extraction — only on client→server direction (dst_port==443)
+// and only if payload starts with 0x16 (TLS Handshake record)
+static std::string try_extract_sni(const Packet& pkt) {
+    if (pkt.protocol != Protocol::TCP) return {};
+    if (pkt.dst_port != 443)           return {}; // only client→server
+    if (pkt.payload.size() < 6)        return {};
+    if (pkt.payload[0] != 0x16)        return {}; // must be TLS Handshake
+    if (pkt.payload[5] != 0x01)        return {}; // must be Client Hello
+    return extract_sni(pkt.payload);
+}
+
 void FlowTracker::processPacket(const Packet& pkt) {
     FlowKey key = FlowKey::make(
         pkt.src_ip, pkt.src_port,
@@ -42,7 +53,7 @@ void FlowTracker::processPacket(const Packet& pkt) {
         if (pkt.protocol == Protocol::TCP &&
             (pkt.dst_port == 443 || pkt.src_port == 443) &&
             !pkt.payload.empty()) {
-            data.domain = extract_sni(pkt.payload);
+            data.domain = try_extract_sni(pkt);
         }
         data.action         = evaluate_policy(data.app_type, data.domain);
         data.action         = apply_rate_limit(data.action, data.total_bytes);
@@ -52,12 +63,12 @@ void FlowTracker::processPacket(const Packet& pkt) {
         it->second.packet_count  += 1;
         it->second.total_bytes   += pkt.size;
         it->second.last_seen_time = Clock::now();
-        if (it->second.domain.empty() &&
-            pkt.protocol == Protocol::TCP &&
-            (pkt.dst_port == 443 || pkt.src_port == 443) &&
-            !pkt.payload.empty()) {
-            it->second.domain = extract_sni(pkt.payload);
-            it->second.action = evaluate_policy(it->second.app_type, it->second.domain);
+        if (it->second.domain.empty() && !pkt.payload.empty()) {
+            std::string sni = try_extract_sni(pkt);
+            if (!sni.empty()) {
+                it->second.domain = sni;
+                it->second.action = evaluate_policy(it->second.app_type, it->second.domain);
+            }
         }
         // Re-apply rate limit on every update
         it->second.action = apply_rate_limit(it->second.action, it->second.total_bytes);

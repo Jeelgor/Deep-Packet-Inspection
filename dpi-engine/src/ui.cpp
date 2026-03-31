@@ -84,7 +84,9 @@ static void draw_flows(const FlowTracker& tracker) {
     }
 }
 
-void run_ui(const FlowTracker& tracker, const bool& done) {
+void run_ui(const FlowTracker& tracker,
+            const std::atomic<bool>& done,
+            std::atomic<bool>& stop) {
     initscr();
     cbreak();
     noecho();
@@ -101,37 +103,25 @@ void run_ui(const FlowTracker& tracker, const bool& done) {
 
     while (true) {
         int ch = getch();
-        if (ch == 'q' || ch == 'Q') break;
-        if (done) {
-            // render one final time then exit
-            erase();
-            attron(A_BOLD);
-            mvprintw(0, 0, "  DPI Flow Monitor  [Processing complete - press q to exit]");
-            attroff(A_BOLD);
-            move(3, 0);
-            draw_header();
-            draw_flows(tracker);
-            refresh();
-            // wait for q
-            nodelay(stdscr, FALSE);
-            while (getch() != 'q') {}
-            break;
-        }
+        if (ch == 'q' || ch == 'Q') { stop = true; break; }
 
-        erase(); // flicker-free clear
+        erase();
 
-        // Title
+        // Title changes when processing is complete
         attron(A_BOLD);
-        mvprintw(0, 0, "  DPI Flow Monitor");
+        if (done)
+            mvprintw(0, 0, "  DPI Flow Monitor  [Complete - press q to exit]");
+        else
+            mvprintw(0, 0, "  DPI Flow Monitor  [Live]");
         attroff(A_BOLD);
-        mvprintw(1, 0, "  Press 'q' to quit\n\n");
+        mvprintw(1, 0, "  Press 'q' to quit");
 
         move(3, 0);
         draw_header();
         draw_flows(tracker);
 
         refresh();
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
     endwin();
